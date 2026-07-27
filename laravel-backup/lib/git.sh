@@ -178,10 +178,13 @@ GITIGNORE
             log_info "Created .gitignore"
         fi
         
-        # Force-add everything
-        git -C "$project_root" add -f . 2>&1 || {
+        # Stage everything (respects .gitignore)
+        git -C "$project_root" add . 2>&1 || {
             log_warn "Failed to stage project files"
         }
+        
+        # Force-add backup directory (bypass .gitignore for backups)
+        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     else
         # Existing repo - just add backup files
         log_info "Adding backup files..."
