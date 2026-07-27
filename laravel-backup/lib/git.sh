@@ -124,10 +124,20 @@ git_commit_backup() {
 
     log_info "Committing backup to git..."
 
-    # Check if this is a fresh repo (no commits yet)
+    # Check if this is a fresh repo (no commits yet) OR no remote (new GitHub repo)
     local is_fresh_repo=false
     if ! git -C "$project_root" rev-parse HEAD &>/dev/null; then
         is_fresh_repo=true
+    fi
+    
+    # Also treat as fresh if no remote is configured (new GitHub repo)
+    if [[ "$is_fresh_repo" == "false" ]]; then
+        local remote_url
+        remote_url=$(git -C "$project_root" remote get-url origin 2>/dev/null || echo "")
+        if [[ -z "$remote_url" ]]; then
+            is_fresh_repo=true
+            log_info "No remote configured - treating as fresh repository"
+        fi
     fi
 
     if [[ "$is_fresh_repo" == "true" ]]; then
