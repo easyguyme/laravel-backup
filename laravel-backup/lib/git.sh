@@ -124,13 +124,64 @@ git_commit_backup() {
 
     log_info "Committing backup to git..."
 
-    # Force-add backup files (bypass .gitignore)
-    git -C "$project_root" add -f "${backup_dir}/" 2>&1 || {
-        log_warn "Failed to stage backup directory"
-    }
+    # Check if this is a fresh repo (no commits yet)
+    local is_fresh_repo=false
+    if ! git -C "$project_root" rev-parse HEAD &>/dev/null; then
+        is_fresh_repo=true
+    fi
 
-    # Stage manifest if present in project root
-    [[ -f "${project_root}/manifest.json" ]] && git -C "$project_root" add -f "manifest.json" 2>&1 || true
+    if [[ "$is_fresh_repo" == "true" ]]; then
+        # Fresh repo - add everything (app + backups)
+        log_info "Initial commit - adding entire project..."
+        
+        # Create .gitignore if it doesn't exist
+        if [[ ! -f "${project_root}/.gitignore" ]]; then
+            cat > "${project_root}/.gitignore" << 'GITIGNORE'
+# Laravel
+/vendor/
+/node_modules/
+/storage/logs/*.log
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/bootstrap/cache/
+
+# Environment
+.env
+.env.backup
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup temp files
+/tmp/
+*.tmp
+GITIGNORE
+            log_info "Created .gitignore"
+        fi
+        
+        # Force-add everything
+        git -C "$project_root" add -f . 2>&1 || {
+            log_warn "Failed to stage project files"
+        }
+    else
+        # Existing repo - just add backup files
+        log_info "Adding backup files..."
+        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || {
+            log_warn "Failed to stage backup directory"
+        }
+        
+        # Stage manifest if present in project root
+        [[ -f "${project_root}/manifest.json" ]] && git -C "$project_root" add -f "manifest.json" 2>&1 || true
+    fi
 
     # Check if there are changes to commit
     if git -C "$project_root" diff --cached --quiet 2>/dev/null; then
@@ -229,7 +280,8 @@ git_ensure_remote() {
                         if [[ -n "$new_url" ]]; then
                             [[ "$new_url" != *.git ]] && new_url="${new_url}.git"
                             git -C "$project_root" remote set-url "$remote" "$new_url" 2>/dev/null || true
-                            log_success "Updated remote to: ${new_url}"
+                            log_success "Created and configured remote: ${new_url}"
+                            return 0
                         fi
                     else
                         log_warn "Skipping push - repository does not exist"
