@@ -174,14 +174,22 @@ Thumbs.db
 # Backup temp files
 /tmp/
 *.tmp
-
-# Large backup archives (store these offsite, not in git)
-backups/*.sql.gz
-backups/*.sql.gz.enc
-backups/*.uploads.tar.gz
-backups/*.uploads.tar.gz.enc
 GITIGNORE
             log_info "Created .gitignore"
+        fi
+        
+        # Setup Git LFS for large files if available
+        if command_exists git-lfs || git lfs version &>/dev/null; then
+            log_info "Setting up Git LFS for large backup files..."
+            git -C "$project_root" lfs install 2>/dev/null || true
+            git -C "$project_root" lfs track "*.sql.gz" 2>/dev/null || true
+            git -C "$project_root" lfs track "*.sql.gz.enc" 2>/dev/null || true
+            git -C "$project_root" lfs track "*.uploads.tar.gz" 2>/dev/null || true
+            git -C "$project_root" lfs track "*.uploads.tar.gz.enc" 2>/dev/null || true
+            git -C "$project_root" add -f .gitattributes 2>/dev/null || true
+        else
+            log_warn "Git LFS not installed - large files may fail to push"
+            log_info "Install with: apt install git-lfs && git lfs install"
         fi
         
         # Stage everything (respects .gitignore)
@@ -189,14 +197,22 @@ GITIGNORE
             log_warn "Failed to stage project files"
         }
         
-        # Force-add only manifest and logs (not large archives)
-        git -C "$project_root" add -f "${backup_dir}/*.manifest.json" 2>&1 || true
-        git -C "$project_root" add -f "${backup_dir}/*.log" 2>&1 || true
+        # Force-add backup files
+        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     else
-        # Existing repo - just add backup manifest and logs (not large archives)
+        # Existing repo - add backup files with LFS
         log_info "Adding backup files..."
-        git -C "$project_root" add -f "${backup_dir}/*.manifest.json" 2>&1 || true
-        git -C "$project_root" add -f "${backup_dir}/*.log" 2>&1 || true
+        
+        # Track large files with LFS if available
+        if git -C "$project_root" lfs version &>/dev/null; then
+            git -C "$project_root" lfs track "*.sql.gz" 2>/dev/null || true
+            git -C "$project_root" lfs track "*.sql.gz.enc" 2>/dev/null || true
+            git -C "$project_root" lfs track "*.uploads.tar.gz" 2>/dev/null || true
+            git -C "$project_root" lfs track "*.uploads.tar.gz.enc" 2>/dev/null || true
+            git -C "$project_root" add -f .gitattributes 2>/dev/null || true
+        fi
+        
+        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     fi
 
     # Check if there are changes to commit
