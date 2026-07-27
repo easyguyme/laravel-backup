@@ -63,25 +63,30 @@ validate_database_connection() {
         mysql|pgsql)
             # Check if we can connect
             if [[ -f "${project_root}/.env" ]]; then
-                source "${project_root}/.env" 2>/dev/null || true
+                # Read values without sourcing (avoid variable conflicts)
+                local db_host db_user db_pass db_name
+                db_host=$(env_read "${project_root}/.env" "DB_HOST" "127.0.0.1")
+                db_user=$(env_read "${project_root}/.env" "DB_USERNAME" "root")
+                db_pass=$(env_read "${project_root}/.env" "DB_PASSWORD" "")
+                db_name=$(env_read "${project_root}/.env" "DB_DATABASE" "")
             fi
 
             case "$db_type" in
                 mysql)
                     if command_exists mysql; then
-                        mysql -h "${DB_HOST:-127.0.0.1}" \
-                              -u "${DB_USERNAME:-root}" \
-                              -p"${DB_PASSWORD:-}" \
-                              -e "SELECT 1" "${DB_DATABASE:-}" &>/dev/null
+                        mysql -h "${db_host:-127.0.0.1}" \
+                              -u "${db_user:-root}" \
+                              -p"${db_pass:-}" \
+                              -e "SELECT 1" "${db_name:-}" &>/dev/null
                         return $?
                     fi
                     ;;
                 pgsql)
                     if command_exists psql; then
-                        PGPASSWORD="${DB_PASSWORD:-}" \
-                        psql -h "${DB_HOST:-127.0.0.1}" \
-                             -U "${DB_USERNAME:-postgres}" \
-                             -d "${DB_DATABASE:-}" \
+                        PGPASSWORD="${db_pass:-}" \
+                        psql -h "${db_host:-127.0.0.1}" \
+                             -U "${db_user:-postgres}" \
+                             -d "${db_name:-}" \
                              -c "SELECT 1" &>/dev/null
                         return $?
                     fi
@@ -91,7 +96,8 @@ validate_database_connection() {
             return 0
             ;;
         sqlite)
-            local db_path="${DB_DATABASE:-database/database.sqlite}"
+            local db_path
+            db_path=$(env_read "${project_root}/.env" "DB_DATABASE" "database/database.sqlite")
             if [[ ! -f "$db_path" ]]; then
                 log_warn "SQLite database not found: ${db_path}"
                 return 1
