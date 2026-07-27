@@ -167,7 +167,13 @@ validate_filename() {
 # ── Get project name from directory ─────────────────────────
 project_name() {
     local project_root="${1:-$(pwd)}"
-    basename "$project_root"
+    local name
+    name=$(basename "$project_root")
+    # basename "." returns ".", use directory name instead
+    if [[ "$name" == "." ]] || [[ "$name" == "/" ]]; then
+        name=$(basename "$(cd "$project_root" && pwd)")
+    fi
+    echo "$name"
 }
 
 # ── Check if running as root ────────────────────────────────
