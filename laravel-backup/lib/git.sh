@@ -125,12 +125,13 @@ git_commit_backup() {
     log_info "Committing backup to git..."
 
     # Stage backup directory
-    if ! git -C "$project_root" add "${backup_dir}/" 2>/dev/null; then
-        log_warn "Failed to stage backup directory"
-    fi
+    local add_output
+    add_output=$(git -C "$project_root" add "${backup_dir}/" 2>&1) || {
+        log_warn "Failed to stage backup: $add_output"
+    }
 
     # Stage manifest if present
-    git -C "$project_root" add "manifest.json" 2>/dev/null || true
+    git -C "$project_root" add "manifest.json" 2>&1 || true
 
     # Check if there are changes to commit
     if git -C "$project_root" diff --cached --quiet 2>/dev/null; then
@@ -169,10 +170,11 @@ git_tag_backup() {
 
     log_info "Creating git tag: ${tag_name}"
 
-    if ! git -C "$project_root" tag -a "$tag_name" -m "Backup: ${tag_name}" 2>/dev/null; then
-        log_error "Git tag creation failed"
+    local tag_output
+    tag_output=$(git -C "$project_root" tag -a "$tag_name" -m "Backup: ${tag_name}" 2>&1) || {
+        log_error "Git tag creation failed: $tag_output"
         return 1
-    fi
+    }
 
     log_success "Created tag: ${tag_name}"
     return 0
