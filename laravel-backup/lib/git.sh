@@ -19,6 +19,9 @@ git_available() {
 git_init_if_needed() {
     local project_root="${1:-$(pwd)}"
 
+    # Resolve to absolute path
+    project_root=$(cd "$project_root" 2>/dev/null && pwd) || project_root="$(pwd)"
+
     # Git must be installed
     if ! command_exists git; then
         log_error "Git is not installed"
@@ -36,6 +39,14 @@ git_init_if_needed() {
         return 1
     }
     log_success "Initialized git repository"
+
+    # Ensure git user is configured
+    if [[ -z "$(git -C "$project_root" config user.name 2>/dev/null)" ]]; then
+        git -C "$project_root" config user.name "laravel-backup" 2>/dev/null || true
+    fi
+    if [[ -z "$(git -C "$project_root" config user.email 2>/dev/null)" ]]; then
+        git -C "$project_root" config user.email "backup@laravel-backup" 2>/dev/null || true
+    fi
 
     # Try to create a private GitHub repo and add remote
     if github_available; then
@@ -89,9 +100,20 @@ git_commit_backup() {
     local message="$2"
     local backup_dir="${BACKUP_DIR:-backups}"
 
+    # Resolve to absolute path
+    project_root=$(cd "$project_root" 2>/dev/null && pwd) || project_root="$(pwd)"
+
     # Initialize repo if needed
     if ! git_available "$project_root"; then
         git_init_if_needed "$project_root" || return 1
+    fi
+
+    # Ensure git user is configured
+    if [[ -z "$(git -C "$project_root" config user.name 2>/dev/null)" ]]; then
+        git -C "$project_root" config user.name "laravel-backup" 2>/dev/null || true
+    fi
+    if [[ -z "$(git -C "$project_root" config user.email 2>/dev/null)" ]]; then
+        git -C "$project_root" config user.email "backup@laravel-backup" 2>/dev/null || true
     fi
 
     log_info "Committing backup to git..."
