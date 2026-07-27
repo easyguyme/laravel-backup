@@ -120,6 +120,8 @@ step_dump_database() {
     local dump_file="${TEMP_DIR}/database.sql.gz"
     mkdir -p "$TEMP_DIR"
 
+    # Trim whitespace and carriage returns
+    DB_TYPE=$(echo "$DB_TYPE" | tr -d '\r' | xargs)
     log_debug "DB_TYPE='${DB_TYPE}' (length: ${#DB_TYPE})"
     
     case "$DB_TYPE" in
