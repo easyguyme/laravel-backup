@@ -157,9 +157,15 @@ git_tag_backup() {
     local project_root="$1"
     local tag_name="$2"
 
+    # Resolve to absolute path
+    project_root=$(cd "$project_root" 2>/dev/null && pwd) || project_root="$(pwd)"
+
     if ! git_available "$project_root"; then
         git_init_if_needed "$project_root" || return 1
     fi
+
+    # Fix dubious ownership error
+    git config --global --add safe.directory "$project_root" 2>/dev/null || true
 
     log_info "Creating git tag: ${tag_name}"
 
@@ -179,9 +185,15 @@ git_push_backup() {
     local remote="${2:-origin}"
     local branch="${3:-}"
 
+    # Resolve to absolute path
+    project_root=$(cd "$project_root" 2>/dev/null && pwd) || project_root="$(pwd)"
+
     if ! git_available "$project_root"; then
         git_init_if_needed "$project_root" || return 1
     fi
+
+    # Fix dubious ownership error
+    git config --global --add safe.directory "$project_root" 2>/dev/null || true
 
     # Check if remote exists
     if ! git -C "$project_root" remote get-url "$remote" &>/dev/null; then
@@ -209,9 +221,15 @@ git_push_tags() {
     local project_root="$1"
     local remote="${2:-origin}"
 
+    # Resolve to absolute path
+    project_root=$(cd "$project_root" 2>/dev/null && pwd) || project_root="$(pwd)"
+
     if ! git_available "$project_root"; then
         git_init_if_needed "$project_root" || return 1
     fi
+
+    # Fix dubious ownership error
+    git config --global --add safe.directory "$project_root" 2>/dev/null || true
 
     # Check if remote exists
     if ! git -C "$project_root" remote get-url "$remote" &>/dev/null; then
