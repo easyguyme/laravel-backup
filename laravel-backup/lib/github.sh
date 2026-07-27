@@ -56,8 +56,11 @@ github_add_remote() {
     local project_root="$1"
     local repo_url="$2"
 
+    # Resolve to absolute path
+    project_root=$(cd "$project_root" 2>/dev/null && pwd) || project_root="$(pwd)"
+
     if ! git_available "$project_root"; then
-        log_error "Not a git repository"
+        log_error "Not a git repository: $project_root"
         return 1
     fi
 

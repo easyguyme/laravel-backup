@@ -119,7 +119,9 @@ git_commit_backup() {
     log_info "Committing backup to git..."
 
     # Stage backup directory
-    git -C "$project_root" add "${backup_dir}/" 2>/dev/null || true
+    if ! git -C "$project_root" add "${backup_dir}/" 2>/dev/null; then
+        log_warn "Failed to stage backup directory"
+    fi
 
     # Stage manifest if present
     git -C "$project_root" add "manifest.json" 2>/dev/null || true
@@ -131,10 +133,11 @@ git_commit_backup() {
     fi
 
     # Create commit
-    if ! git -C "$project_root" commit -m "$message" --quiet 2>/dev/null; then
-        log_error "Git commit failed"
+    local commit_output
+    commit_output=$(git -C "$project_root" commit -m "$message" 2>&1) || {
+        log_error "Git commit failed: $commit_output"
         return 1
-    fi
+    }
 
     local commit_hash
     commit_hash=$(git_short_hash "$project_root")
