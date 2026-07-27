@@ -150,14 +150,23 @@ env_read() {
         return 1
     fi
 
-    # Strip quotes
+    # Strip quotes (handle all combinations)
     value="${value#\"}"
     value="${value%\"}"
     value="${value#\'}"
     value="${value%\'}"
+    
+    # Also strip any remaining leading/trailing quotes
+    value=$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")
 
     # Strip inline comments (space followed by #)
     value="${value%% #*}"
+    
+    # Strip carriage return
+    value=$(echo "$value" | tr -d '\r')
+    
+    # Trim whitespace
+    value=$(echo "$value" | xargs)
 
     echo "$value"
     return 0
