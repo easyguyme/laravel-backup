@@ -14,6 +14,49 @@ git_available() {
     git -C "$project_root" rev-parse --is-inside-work-tree &>/dev/null
 }
 
+# ── Initialize git repo if not present ──────────────────────
+# Creates repo, creates private GitHub repo (if gh available), adds remote
+git_init_if_needed() {
+    local project_root="${1:-$(pwd)}"
+
+    # Git must be installed
+    if ! command_exists git; then
+        log_error "Git is not installed"
+        return 1
+    fi
+
+    # Already a git repo
+    if git -C "$project_root" rev-parse --is-inside-work-tree &>/dev/null; then
+        return 0
+    fi
+
+    log_info "Initializing git repository..."
+    git -C "$project_root" init 2>/dev/null || {
+        log_error "Failed to initialize git repository"
+        return 1
+    }
+    log_success "Initialized git repository"
+
+    # Try to create a private GitHub repo and add remote
+    if github_available; then
+        local repo_name
+        repo_name=$(basename "$project_root")
+
+        log_info "Creating private GitHub repository: ${repo_name}"
+        local repo_url
+        repo_url=$(github_create_repo "$repo_name" "private") || true
+
+        if [[ -n "$repo_url" ]]; then
+            github_add_remote "$project_root" "$repo_url" || true
+        fi
+    else
+        log_warn "GitHub CLI not available - skipping remote setup"
+        log_info "Add a remote manually: git remote add origin <url>"
+    fi
+
+    return 0
+}
+
 # ── Get current branch name ─────────────────────────────────
 git_current_branch() {
     local project_root="${1:-$(pwd)}"
@@ -46,9 +89,9 @@ git_commit_backup() {
     local message="$2"
     local backup_dir="${BACKUP_DIR:-backups}"
 
+    # Initialize repo if needed
     if ! git_available "$project_root"; then
-        log_warn "Git not available, skipping commit"
-        return 0
+        git_init_if_needed "$project_root" || return 1
     fi
 
     log_info "Committing backup to git..."
@@ -84,7 +127,7 @@ git_tag_backup() {
     local tag_name="$2"
 
     if ! git_available "$project_root"; then
-        return 0
+        git_init_if_needed "$project_root" || return 1
     fi
 
     log_info "Creating git tag: ${tag_name}"
@@ -106,6 +149,12 @@ git_push_backup() {
     local branch="${3:-}"
 
     if ! git_available "$project_root"; then
+        git_init_if_needed "$project_root" || return 1
+    fi
+
+    # Check if remote exists
+    if ! git -C "$project_root" remote get-url "$remote" &>/dev/null; then
+        log_warn "Remote '${remote}' not configured - skipping push"
         return 0
     fi
 
@@ -130,6 +179,11 @@ git_push_tags() {
     local remote="${2:-origin}"
 
     if ! git_available "$project_root"; then
+        git_init_if_needed "$project_root" || return 1
+    fi
+
+    # Check if remote exists
+    if ! git -C "$project_root" remote get-url "$remote" &>/dev/null; then
         return 0
     fi
 
