@@ -185,6 +185,83 @@ git_tag_backup() {
     return 0
 }
 
+# ── Ensure remote is configured and repo exists ─────────────
+# Usage: git_ensure_remote <project_root> [remote]
+git_ensure_remote() {
+    local project_root="$1"
+    local remote="${2:-origin}"
+    local project_name
+    project_name=$(basename "$project_root")
+
+    # Check if remote exists
+    local remote_url
+    remote_url=$(git -C "$project_root" remote get-url "$remote" 2>/dev/null || echo "")
+
+    if [[ -n "$remote_url" ]]; then
+        # Fix URL - ensure it ends with .git
+        if [[ "$remote_url" != *.git ]]; then
+            remote_url="${remote_url}.git"
+            git -C "$project_root" remote set-url "$remote" "$remote_url" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
+    # No remote configured - try to set up
+    log_warn "Remote '${remote}' not configured"
+
+    # Try GitHub first
+    if github_available; then
+        log_info "GitHub authenticated, checking for repository..."
+        
+        # Check if repo exists
+        local existing_url
+        existing_url=$(gh repo view "${project_name}" --json url --jq '.url' 2>/dev/null || echo "")
+        
+        if [[ -n "$existing_url" ]]; then
+            log_info "Repository exists: ${existing_url}"
+            git -C "$project_root" remote add "$remote" "${existing_url}.git" 2>/dev/null || true
+        else
+            # Ask to create repo
+            if confirm "Create private GitHub repository '${project_name}'?" "y"; then
+                local repo_url
+                repo_url=$(github_create_repo "$project_name" "private") || true
+                
+                if [[ -n "$repo_url" ]]; then
+                    # Ensure .git suffix
+                    [[ "$repo_url" != *.git ]] && repo_url="${repo_url}.git"
+                    git -C "$project_root" remote add "$remote" "$repo_url" 2>/dev/null || true
+                fi
+            fi
+        fi
+    fi
+
+    # Still no remote - prompt user
+    remote_url=$(git -C "$project_root" remote get-url "$remote" 2>/dev/null || echo "")
+    if [[ -z "$remote_url" ]]; then
+        echo ""
+        echo "Enter your remote repository URL:"
+        echo "  Examples:"
+        echo "    https://github.com/username/repo.git"
+        echo "    git@github.com:username/repo.git"
+        echo ""
+        read -rp "Remote URL: " remote_url
+        
+        if [[ -n "$remote_url" ]]; then
+            [[ "$remote_url" != *.git ]] && remote_url="${remote_url}.git"
+            git -C "$project_root" remote add "$remote" "$remote_url" 2>/dev/null || {
+                log_error "Failed to add remote"
+                return 1
+            }
+            log_success "Added remote: ${remote_url}"
+        else
+            log_warn "No URL provided"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 # ── Push to remote ──────────────────────────────────────────
 # Usage: git_push_backup <project_root> [remote] [branch]
 git_push_backup() {
@@ -202,33 +279,9 @@ git_push_backup() {
     # Fix dubious ownership error
     git config --global --add safe.directory "$project_root" 2>/dev/null || true
 
-    # Check if remote exists
-    if ! git -C "$project_root" remote get-url "$remote" &>/dev/null; then
-        log_warn "Remote '${remote}' not configured"
-        
-        if confirm "Would you like to add a remote now?" "y"; then
-            echo ""
-            echo "Enter your remote repository URL:"
-            echo "  Examples:"
-            echo "    https://github.com/username/repo.git"
-            echo "    git@github.com:username/repo.git"
-            echo ""
-            read -rp "Remote URL: " remote_url
-            
-            if [[ -n "$remote_url" ]]; then
-                git -C "$project_root" remote add "$remote" "$remote_url" 2>/dev/null || {
-                    log_error "Failed to add remote"
-                    return 1
-                }
-                log_success "Added remote: ${remote_url}"
-            else
-                log_warn "No URL provided, skipping push"
-                return 0
-            fi
-        else
-            log_info "Skipping push"
-            return 0
-        fi
+    # Ensure remote is configured
+    if ! git_ensure_remote "$project_root" "$remote"; then
+        return 1
     fi
 
     if [[ -z "$branch" ]]; then
@@ -238,7 +291,7 @@ git_push_backup() {
     log_info "Pushing to ${remote}/${branch}..."
 
     local push_output
-    push_output=$(git -C "$project_root" push "$remote" "$branch" 2>&1) || {
+    push_output=$(git -C "$project_root" push -u "$remote" "$branch" 2>&1) || {
         log_error "Git push failed: $push_output"
         return 1
     }
