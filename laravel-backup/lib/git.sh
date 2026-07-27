@@ -129,8 +129,8 @@ git_commit_backup() {
         log_warn "Failed to stage backup directory"
     }
 
-    # Stage manifest if present
-    git -C "$project_root" add -f "manifest.json" 2>&1 || true
+    # Stage manifest if present in project root
+    [[ -f "${project_root}/manifest.json" ]] && git -C "$project_root" add -f "manifest.json" 2>&1 || true
 
     # Check if there are changes to commit
     if git -C "$project_root" diff --cached --quiet 2>/dev/null; then
