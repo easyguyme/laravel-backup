@@ -120,12 +120,14 @@ step_dump_database() {
     local dump_file="${TEMP_DIR}/database.sql.gz"
     mkdir -p "$TEMP_DIR"
 
+    log_debug "DB_TYPE='${DB_TYPE}' (length: ${#DB_TYPE})"
+    
     case "$DB_TYPE" in
-        mysql)  mysql_dump "." "$dump_file" || return 1 ;;
-        pgsql)  postgres_dump "." "$dump_file" || return 1 ;;
-        sqlite) sqlite_dump "." "$dump_file" || return 1 ;;
+        mysql|mariadb)  mysql_dump "." "$dump_file" || return 1 ;;
+        pgsql|postgres|postgresql)  postgres_dump "." "$dump_file" || return 1 ;;
+        sqlite|sqlite3) sqlite_dump "." "$dump_file" || return 1 ;;
         *)
-            log_error "Unsupported database type: ${DB_TYPE}"
+            log_error "Unsupported database type: '${DB_TYPE}'"
             return 1
             ;;
     esac
