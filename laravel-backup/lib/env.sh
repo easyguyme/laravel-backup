@@ -162,11 +162,8 @@ env_read() {
     # Strip inline comments (space followed by #)
     value="${value%% #*}"
     
-    # Strip carriage return
-    value=$(echo "$value" | tr -d '\r')
-    
-    # Trim whitespace
-    value=$(echo "$value" | xargs)
+    # Strip carriage return and trim whitespace
+    value=$(echo "$value" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     echo "$value"
     return 0
