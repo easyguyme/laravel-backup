@@ -40,7 +40,18 @@ github_create_repo() {
     )
 
     local repo_url
-    repo_url=$(gh "${create_args[@]}" 2>/dev/null) || {
+    repo_url=$(gh "${create_args[@]}" 2>&1) || {
+        # Check if repo already exists
+        if echo "$repo_url" | grep -qi "already exists"; then
+            local username
+            username=$(gh api user --jq '.login' 2>/dev/null || echo "")
+            if [[ -n "$username" ]]; then
+                repo_url="https://github.com/${username}/${name}"
+                log_info "Repository already exists: ${repo_url}"
+                echo "$repo_url"
+                return 0
+            fi
+        fi
         log_error "Failed to create GitHub repository"
         return 1
     }

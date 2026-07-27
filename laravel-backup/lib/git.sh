@@ -48,6 +48,9 @@ git_init_if_needed() {
         git -C "$project_root" config user.email "backup@laravel-backup" 2>/dev/null || true
     fi
 
+    # Fix dubious ownership error
+    git config --global --add safe.directory "$project_root" 2>/dev/null || true
+
     # Try to create a private GitHub repo and add remote
     if github_available; then
         local repo_name
@@ -115,6 +118,9 @@ git_commit_backup() {
     if [[ -z "$(git -C "$project_root" config user.email 2>/dev/null)" ]]; then
         git -C "$project_root" config user.email "backup@laravel-backup" 2>/dev/null || true
     fi
+
+    # Fix dubious ownership error
+    git config --global --add safe.directory "$project_root" 2>/dev/null || true
 
     log_info "Committing backup to git..."
 
