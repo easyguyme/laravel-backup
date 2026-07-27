@@ -237,10 +237,11 @@ git_push_backup() {
 
     log_info "Pushing to ${remote}/${branch}..."
 
-    if ! git -C "$project_root" push "$remote" "$branch" --quiet 2>/dev/null; then
-        log_error "Git push failed"
+    local push_output
+    push_output=$(git -C "$project_root" push "$remote" "$branch" 2>&1) || {
+        log_error "Git push failed: $push_output"
         return 1
-    fi
+    }
 
     log_success "Pushed to ${remote}/${branch}"
     return 0
@@ -268,10 +269,11 @@ git_push_tags() {
 
     log_info "Pushing tags to ${remote}..."
 
-    if ! git -C "$project_root" push "$remote" --tags --quiet 2>/dev/null; then
-        log_error "Git push tags failed"
+    local tags_output
+    tags_output=$(git -C "$project_root" push "$remote" --tags 2>&1) || {
+        log_error "Git push tags failed: $tags_output"
         return 1
-    fi
+    }
 
     log_success "Pushed tags to ${remote}"
     return 0
