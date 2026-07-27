@@ -351,6 +351,9 @@ step_finalize() {
         cp "${MANIFEST_FILE}" "${backup_dir}/${BACKUP_NAME}.manifest.json"
     fi
 
+    # Clean up macOS resource fork files (._ prefix)
+    rm -f "${backup_dir}/._"* 2>/dev/null || true
+
     # Clean up temp files
     rm -rf "${TEMP_DIR}" 2>/dev/null || true
 
