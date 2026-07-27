@@ -197,11 +197,46 @@ git_ensure_remote() {
     local remote_url
     remote_url=$(git -C "$project_root" remote get-url "$remote" 2>/dev/null || echo "")
 
+    # If remote exists, verify it works (repo exists on GitHub)
     if [[ -n "$remote_url" ]]; then
         # Fix URL - ensure it ends with .git
         if [[ "$remote_url" != *.git ]]; then
             remote_url="${remote_url}.git"
             git -C "$project_root" remote set-url "$remote" "$remote_url" 2>/dev/null || true
+        fi
+        
+        # If GitHub is available, verify repo exists
+        if github_available; then
+            # Extract repo path from URL
+            local repo_path
+            repo_path=$(echo "$remote_url" | sed -E 's|https?://github.com/||; s|\.git$||; s|/$||')
+            
+            if [[ -n "$repo_path" ]]; then
+                # Check if repo exists
+                if ! gh repo view "$repo_path" &>/dev/null; then
+                    log_warn "Repository not found on GitHub: ${repo_path}"
+                    
+                    # Extract just the repo name
+                    local repo_name
+                    repo_name=$(basename "$repo_path")
+                    local owner
+                    owner=$(dirname "$repo_path")
+                    
+                    if confirm "Create private GitHub repository '${repo_name}'?" "y"; then
+                        local new_url
+                        new_url=$(github_create_repo "$repo_name" "private") || true
+                        
+                        if [[ -n "$new_url" ]]; then
+                            [[ "$new_url" != *.git ]] && new_url="${new_url}.git"
+                            git -C "$project_root" remote set-url "$remote" "$new_url" 2>/dev/null || true
+                            log_success "Updated remote to: ${new_url}"
+                        fi
+                    else
+                        log_warn "Skipping push - repository does not exist"
+                        return 1
+                    fi
+                fi
+            fi
         fi
         return 0
     fi
