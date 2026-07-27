@@ -124,14 +124,13 @@ git_commit_backup() {
 
     log_info "Committing backup to git..."
 
-    # Stage backup directory
-    local add_output
-    add_output=$(git -C "$project_root" add "${backup_dir}/" 2>&1) || {
-        log_warn "Failed to stage backup: $add_output"
+    # Force-add backup files (bypass .gitignore)
+    git -C "$project_root" add -f "${backup_dir}/" 2>&1 || {
+        log_warn "Failed to stage backup directory"
     }
 
     # Stage manifest if present
-    git -C "$project_root" add "manifest.json" 2>&1 || true
+    git -C "$project_root" add -f "manifest.json" 2>&1 || true
 
     # Check if there are changes to commit
     if git -C "$project_root" diff --cached --quiet 2>/dev/null; then
@@ -167,6 +166,12 @@ git_tag_backup() {
 
     # Fix dubious ownership error
     git config --global --add safe.directory "$project_root" 2>/dev/null || true
+
+    # Check if there are any commits (tag requires at least one)
+    if ! git -C "$project_root" rev-parse HEAD &>/dev/null; then
+        log_warn "No commits yet, skipping tag creation"
+        return 0
+    fi
 
     log_info "Creating git tag: ${tag_name}"
 
