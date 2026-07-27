@@ -150,6 +150,12 @@ env_read() {
         return 1
     fi
 
+    # Strip carriage return FIRST (before quote matching)
+    value=$(echo "$value" | tr -d '\r')
+    
+    # Trim whitespace
+    value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
     # Strip surrounding quotes (single or double) - only from start/end
     # Examples: "value" -> value, 'value' -> value, value" -> value
     if [[ "$value" =~ ^\"(.*)\"$ ]]; then
@@ -168,9 +174,6 @@ env_read() {
 
     # Strip inline comments (space followed by #) - but not inside quotes
     value="${value%% #*}"
-    
-    # Strip carriage return and trim whitespace
-    value=$(echo "$value" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     echo "$value"
     return 0
