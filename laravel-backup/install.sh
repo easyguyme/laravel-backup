@@ -15,9 +15,10 @@ YELLOW='\033[1;33m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-log_info()  { printf '%b[INFO]%b  %s\n' "$GREEN" "$NC" "$*"; }
-log_warn()  { printf '%b[WARN]%b  %s\n' "$YELLOW" "$NC" "$*"; }
-log_error() { printf '%b[ERROR]%b %s\n' "$RED" "$NC" "$*"; }
+log_info()    { printf '%b[INFO]%b    %s\n' "$GREEN" "$NC" "$*"; }
+log_success() { printf '%b[SUCCESS]%b %s\n' "$GREEN" "$NC" "$*"; }
+log_warn()    { printf '%b[WARN]%b    %s\n' "$YELLOW" "$NC" "$*"; }
+log_error()   { printf '%b[ERROR]%b   %s\n' "$RED" "$NC" "$*"; }
 
 # ── Check if running as root ────────────────────────────────
 check_root() {
