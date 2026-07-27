@@ -150,14 +150,9 @@ env_read() {
         return 1
     fi
 
-    # Strip quotes (handle all combinations)
-    value="${value#\"}"
-    value="${value%\"}"
-    value="${value#\'}"
-    value="${value%\'}"
-    
-    # Also strip any remaining leading/trailing quotes
-    value=$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")
+    # Strip all quotes (leading, trailing, and surrounding)
+    # Handle: "value", 'value', value", value'
+    value=$(echo "$value" | sed -e 's/^["'\''"]//' -e 's/["'\''"]$//' -e 's/^["'\'']\(.*\)["'\'']$/\1/')
 
     # Strip inline comments (space followed by #)
     value="${value%% #*}"
