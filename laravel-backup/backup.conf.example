@@ -1,0 +1,108 @@
+# laravel-backup configuration
+# Copy this file to backup.conf and edit as needed
+
+# ── Retention ──────────────────────────────────────────────
+# Number of backups to keep (0 = keep all)
+RETENTION_COUNT=10
+
+# Days to keep backups (0 = no age-based cleanup)
+RETENTION_DAYS=30
+
+# ── Encryption ─────────────────────────────────────────────
+# Enable encryption (true/false)
+ENCRYPTION_ENABLED=true
+
+# Password source: "env", "file", or "prompt"
+#   env   - read from BACKUP_PASSWORD environment variable
+#   file  - read from the file specified by ENCRYPTION_PASSWORD_FILE
+#   prompt - prompt for password each time (not suitable for cron)
+ENCRYPTION_PASSWORD_SOURCE="env"
+
+# Path to password file (only used when ENCRYPTION_PASSWORD_SOURCE="file")
+ENCRYPTION_PASSWORD_FILE=""
+
+# ── Database ───────────────────────────────────────────────
+# Database connection override (auto-detected from .env if empty)
+# Supported: mysql, mariadb, postgresql, sqlite
+DATABASE_TYPE=""
+
+DATABASE_HOST="127.0.0.1"
+DATABASE_PORT=""
+DATABASE_NAME=""
+DATABASE_USER=""
+DATABASE_PASSWORD=""
+
+# SQLite database path (relative to project root)
+SQLITE_DATABASE_PATH=""
+
+# ── Paths ──────────────────────────────────────────────────
+# Backup output directory (relative to project root)
+BACKUP_DIR="backups"
+
+# Temp directory for intermediate files
+TEMP_DIR="/tmp/laravel-backup"
+
+# ── Compression ────────────────────────────────────────────
+# Compression level (1-9, where 9 is maximum)
+COMPRESSION_LEVEL=6
+
+# ── Upload Folders ─────────────────────────────────────────
+# Additional upload directories to include (space-separated)
+# These are searched automatically; add extras here if needed.
+EXTRA_UPLOAD_DIRS=""
+
+# Directories to exclude from archives (space-separated)
+EXCLUDE_DIRS=".git node_modules vendor .env"
+
+# ── Git ────────────────────────────────────────────────────
+# Auto-commit backups to git
+GIT_AUTO_COMMIT=true
+
+# Auto-tag backups
+GIT_AUTO_TAG=true
+
+# Tag prefix
+GIT_TAG_PREFIX="backup"
+
+# Auto-push to remote
+GIT_AUTO_PUSH=false
+
+# Branch to commit backups to (empty = current branch)
+GIT_BACKUP_BRANCH=""
+
+# ── Notifications ──────────────────────────────────────────
+# Enable notifications (true/false)
+NOTIFICATIONS_ENABLED=false
+
+# Telegram
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_CHAT_ID=""
+
+# Slack
+SLACK_WEBHOOK_URL=""
+
+# Discord
+DISCORD_WEBHOOK_URL=""
+
+# Email (requires `mail` or `sendmail`)
+EMAIL_TO=""
+EMAIL_FROM=""
+EMAIL_SUBJECT="[laravel-backup] Backup Report"
+
+# Custom webhook
+WEBHOOK_URL=""
+WEBHOOK_METHOD="POST"
+
+# ── Logging ────────────────────────────────────────────────
+# Log level: DEBUG, INFO, WARNING, ERROR, SUCCESS
+LOG_LEVEL="INFO"
+
+# Log file path (relative to project root or absolute)
+LOG_FILE="backups/backup.log"
+
+# ── Misc ───────────────────────────────────────────────────
+# Verbose output
+VERBOSE=false
+
+# Dry run mode (simulate without making changes)
+DRY_RUN=false

@@ -1,0 +1,21 @@
+{
+  "name": "",
+  "date": "",
+  "laravel_version": "",
+  "php_version": "",
+  "os": "",
+  "hostname": "",
+  "git_commit": "",
+  "git_branch": "",
+  "database": {
+    "type": "",
+    "name": "",
+    "size": "",
+    "dump_file": "",
+    "dump_checksum": ""
+  },
+  "archives": [],
+  "checksum": "",
+  "backup_version": "",
+  "duration_seconds": 0
+}

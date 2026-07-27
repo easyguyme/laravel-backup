@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# laravel-backup - CLI router
+# Dispatches subcommands to commands/ directory
+# ─────────────────────────────────────────────────────────────
+set -Eeuo pipefail
+
+# ── Resolve paths ───────────────────────────────────────────
+LBACKUP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LBACKUP_VERSION="$(cat "${LBACKUP_ROOT}/VERSION" 2>/dev/null || echo "dev")"
+
+# ── Inline colours (safe before lib load) ───────────────────
+BOLD=$'\033[1m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+NC=$'\033[0m'
+
+# ── Load libraries ──────────────────────────────────────────
+_source_lib() {
+    local lib="$1"
+    if [[ -f "${LBACKUP_ROOT}/lib/${lib}.sh" ]]; then
+        # shellcheck source=/dev/null
+        source "${LBACKUP_ROOT}/lib/${lib}.sh"
+    fi
+}
+
+for _lib in colours logging env helpers validator config lock; do
+    _source_lib "$_lib"
+done
+
+# Fallback logging if logging.sh not yet available
+if ! declare -f log_error &>/dev/null; then
+    log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+fi
+
+unset _lib _source_lib
+
+# ── Usage ───────────────────────────────────────────────────
+usage() {
+    printf '%b' "${BOLD}laravel-backup${NC} v${LBACKUP_VERSION}
+
+${BOLD}USAGE${NC}
+    laravel-backup <command> [options]
+
+${BOLD}COMMANDS${NC}
+    init        Initialize laravel-backup in a Laravel project
+    backup      Create a backup of the project
+    restore     Restore a project from backup
+    verify      Verify backup integrity
+    cleanup     Remove old backups based on retention policy
+    status      Show project and backup status
+    schedule    Set up automated backup scheduling
+    update      Update laravel-backup to the latest version
+
+${BOLD}OPTIONS${NC}
+    -h, --help      Show this help message
+    -v, --version   Show version
+    --verbose       Enable verbose output
+
+${BOLD}EXAMPLES${NC}
+    laravel-backup init
+    laravel-backup backup
+    laravel-backup backup --dry-run
+    laravel-backup restore ./backups/project_20260727_120000.tar.gz.enc
+    laravel-backup cleanup --retain 5
+    laravel-backup schedule --frequency daily
+
+${BOLD}CONFIGURATION${NC}
+    Copy backup.conf.example to backup.conf and edit as needed.
+
+${BOLD}DOCUMENTATION${NC}
+    https://github.com/your-org/laravel-backup
+
+"
+}
+
+# ── Version ─────────────────────────────────────────────────
+version() {
+    echo "laravel-backup v${LBACKUP_VERSION}"
+}
+
+# ── Main dispatch ───────────────────────────────────────────
+main() {
+    # Handle global flags before command dispatch
+    case "${1:-}" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -v|--version)
+            version
+            exit 0
+            ;;
+    esac
+
+    if [[ $# -eq 0 ]]; then
+        usage
+        exit 1
+    fi
+
+    local command="$1"
+    shift
+
+    # Validate command name (prevent path traversal)
+    if [[ "$command" =~ [/\.] ]] || [[ ! "$command" =~ ^[a-zA-Z_-]+$ ]]; then
+        log_error "Invalid command name: ${command}"
+        exit 1
+    fi
+
+    local command_file="${LBACKUP_ROOT}/commands/${command}.sh"
+
+    if [[ ! -f "$command_file" ]]; then
+        log_error "Unknown command: ${command}"
+        echo ""
+        usage
+        exit 1
+    fi
+
+    # Ensure command file is executable
+    if [[ ! -x "$command_file" ]]; then
+        chmod +x "$command_file"
+    fi
+
+    # Execute the command
+    "$command_file" "$@"
+}
+
+main "$@"

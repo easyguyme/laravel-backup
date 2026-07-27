@@ -1,0 +1,8 @@
+# laravel-backup
+backups/
+!backups/.gitkeep
+*.enc
+*.sql.gz
+*.sql.gz.enc
+backup.log
+.env.backup
