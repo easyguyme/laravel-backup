@@ -174,6 +174,12 @@ Thumbs.db
 # Backup temp files
 /tmp/
 *.tmp
+
+# Large backup archives (store these offsite, not in git)
+backups/*.sql.gz
+backups/*.sql.gz.enc
+backups/*.uploads.tar.gz
+backups/*.uploads.tar.gz.enc
 GITIGNORE
             log_info "Created .gitignore"
         fi
@@ -183,17 +189,14 @@ GITIGNORE
             log_warn "Failed to stage project files"
         }
         
-        # Force-add backup directory (bypass .gitignore for backups)
-        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
+        # Force-add only manifest and logs (not large archives)
+        git -C "$project_root" add -f "${backup_dir}/*.manifest.json" 2>&1 || true
+        git -C "$project_root" add -f "${backup_dir}/*.log" 2>&1 || true
     else
-        # Existing repo - just add backup files
+        # Existing repo - just add backup manifest and logs (not large archives)
         log_info "Adding backup files..."
-        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || {
-            log_warn "Failed to stage backup directory"
-        }
-        
-        # Stage manifest if present in project root
-        [[ -f "${project_root}/manifest.json" ]] && git -C "$project_root" add -f "manifest.json" 2>&1 || true
+        git -C "$project_root" add -f "${backup_dir}/*.manifest.json" 2>&1 || true
+        git -C "$project_root" add -f "${backup_dir}/*.log" 2>&1 || true
     fi
 
     # Check if there are changes to commit
