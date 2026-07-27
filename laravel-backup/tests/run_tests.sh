@@ -232,7 +232,7 @@ test_config() {
     config_load "" "/nonexistent" 2>/dev/null || true
     assert_equals "10" "${RETENTION_COUNT:-}" "Default RETENTION_COUNT"
     assert_equals "6" "${COMPRESSION_LEVEL:-}" "Default COMPRESSION_LEVEL"
-    assert_equals "true" "${ENCRYPTION_ENABLED:-}" "Default ENCRYPTION_ENABLED"
+    assert_equals "false" "${ENCRYPTION_ENABLED:-}" "Default ENCRYPTION_ENABLED"
 }
 
 # ── Test: Encryption ───────────────────────────────────────

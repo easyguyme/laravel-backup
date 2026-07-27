@@ -156,5 +156,5 @@ encrypt_verify() {
 
 # ── Check if encryption is enabled ──────────────────────────
 encryption_enabled() {
-    [[ "${ENCRYPTION_ENABLED:-true}" == "true" ]]
+    [[ "${ENCRYPTION_ENABLED:-false}" == "true" ]]
 }

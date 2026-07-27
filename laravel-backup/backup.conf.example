@@ -10,7 +10,7 @@ RETENTION_DAYS=30
 
 # ── Encryption ─────────────────────────────────────────────
 # Enable encryption (true/false)
-ENCRYPTION_ENABLED=true
+ENCRYPTION_ENABLED=false
 
 # Password source: "env", "file", or "prompt"
 #   env   - read from BACKUP_PASSWORD environment variable
