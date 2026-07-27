@@ -12,6 +12,7 @@ done
 unset _lib
 
 CURRENT_VERSION="$(cat "${LBACKUP_ROOT}/VERSION" 2>/dev/null || echo "0.0.0")"
+REPO="easyguyme/laravel-backup"
 
 usage() {
     printf '%b' "${BOLD}laravel-backup update${NC} - Update to latest version
@@ -53,7 +54,7 @@ check_github_release() {
     fi
 
     local latest
-    latest=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+    latest=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
 
     if [[ -z "$latest" ]]; then
         log_warn "Could not check for updates"
@@ -140,7 +141,7 @@ update_from_release() {
     trap 'rm -rf "$tmp_dir"' RETURN
 
     if ! gh release download "$latest" \
-        --repo "$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo '')" \
+        --repo "$REPO" \
         --pattern "*.tar.gz" \
         --output "${tmp_dir}/release.tar.gz" 2>/dev/null; then
         log_error "Failed to download release"
