@@ -65,7 +65,7 @@ GIT_AUTO_TAG=true
 GIT_TAG_PREFIX="backup"
 
 # Auto-push to remote
-GIT_AUTO_PUSH=false
+GIT_AUTO_PUSH=true
 
 # Branch to commit backups to (empty = current branch)
 GIT_BACKUP_BRANCH=""

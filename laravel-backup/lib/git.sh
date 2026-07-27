@@ -204,8 +204,31 @@ git_push_backup() {
 
     # Check if remote exists
     if ! git -C "$project_root" remote get-url "$remote" &>/dev/null; then
-        log_warn "Remote '${remote}' not configured - skipping push"
-        return 0
+        log_warn "Remote '${remote}' not configured"
+        
+        if confirm "Would you like to add a remote now?" "y"; then
+            echo ""
+            echo "Enter your remote repository URL:"
+            echo "  Examples:"
+            echo "    https://github.com/username/repo.git"
+            echo "    git@github.com:username/repo.git"
+            echo ""
+            read -rp "Remote URL: " remote_url
+            
+            if [[ -n "$remote_url" ]]; then
+                git -C "$project_root" remote add "$remote" "$remote_url" 2>/dev/null || {
+                    log_error "Failed to add remote"
+                    return 1
+                }
+                log_success "Added remote: ${remote_url}"
+            else
+                log_warn "No URL provided, skipping push"
+                return 0
+            fi
+        else
+            log_info "Skipping push"
+            return 0
+        fi
     fi
 
     if [[ -z "$branch" ]]; then
@@ -290,7 +313,7 @@ git_backup_full() {
     local tag_name="${3:-}"
     local auto_commit="${GIT_AUTO_COMMIT:-true}"
     local auto_tag="${GIT_AUTO_TAG:-true}"
-    local auto_push="${GIT_AUTO_PUSH:-false}"
+    local auto_push="${GIT_AUTO_PUSH:-true}"
 
     if [[ "$auto_commit" != "true" ]]; then
         log_debug "Git auto-commit disabled"
@@ -312,6 +335,14 @@ git_backup_full() {
         git_push_backup "$project_root"
         if [[ "$auto_tag" == "true" ]] && [[ -n "$tag_name" ]]; then
             git_push_tags "$project_root"
+        fi
+    else
+        # Ask if user wants to push
+        if confirm "Push backup to remote repository?" "y"; then
+            git_push_backup "$project_root"
+            if [[ "$auto_tag" == "true" ]] && [[ -n "$tag_name" ]]; then
+                git_push_tags "$project_root"
+            fi
         fi
     fi
 
