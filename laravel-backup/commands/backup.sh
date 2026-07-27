@@ -368,12 +368,15 @@ step_git_commit() {
         return 0
     fi
 
-    if ! git_available "."; then
-        log_warn "Git not available, skipping commit"
+    if ! command_exists git; then
+        log_warn "Git not installed, skipping commit"
         return 0
     fi
 
     log_header "Git Operations"
+
+    # Initialize repo (and private GitHub remote) if needed
+    git_init_if_needed "." || true
 
     local proj_name
     proj_name=$(project_name ".")
