@@ -232,16 +232,66 @@ git_lfs_available() {
     command_exists git && git lfs version &>/dev/null
 }
 
+# ── Install Git LFS if not present ──────────────────────────
+git_lfs_install() {
+    if git_lfs_available; then
+        return 0
+    fi
+
+    log_info "Git LFS not found, installing..."
+
+    if is_root; then
+        if command_exists apt-get; then
+            apt-get update -qq && apt-get install -y -qq git-lfs
+        elif command_exists yum; then
+            yum install -y git-lfs
+        elif command_exists dnf; then
+            dnf install -y git-lfs
+        elif command_exists apk; then
+            apk add --no-cache git-lfs
+        else
+            log_error "Cannot auto-install: unsupported package manager"
+            log_info "Install manually: brew install git-lfs  (macOS) or apt install git-lfs (Debian/Ubuntu)"
+            return 1
+        fi
+    else
+        if command_exists brew; then
+            brew install git-lfs
+        elif command_exists apt-get; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq git-lfs
+        elif command_exists yum; then
+            sudo yum install -y git-lfs
+        elif command_exists dnf; then
+            sudo dnf install -y git-lfs
+        elif command_exists apk; then
+            sudo apk add --no-cache git-lfs
+        elif command_exists pacman; then
+            sudo pacman -S --noconfirm git-lfs
+        elif command_exists zypper; then
+            sudo zypper install -y git-lfs
+        else
+            log_error "Cannot auto-install: no supported package manager found"
+            log_info "Install manually: brew install git-lfs  (macOS) or apt install git-lfs (Debian/Ubuntu)"
+            return 1
+        fi
+    fi
+
+    if ! git_lfs_available; then
+        log_error "Git LFS installation failed"
+        return 1
+    fi
+
+    log_success "Git LFS installed: $(git lfs version 2>/dev/null | head -1)"
+    return 0
+}
+
 # ── Initialize Git LFS and track backup file patterns ────────
 # Usage: git_lfs_setup <project_root>
 git_lfs_setup() {
     local project_root="${1:-$(pwd)}"
 
-    if ! git_lfs_available; then
-        log_warn "Git LFS not installed - large files may fail to push"
-        log_info "Install: brew install git-lfs && git lfs install"
-        return 1
-    fi
+    # Auto-install if missing
+    git_lfs_install || return 1
 
     log_info "Configuring Git LFS for backup files..."
 
