@@ -130,6 +130,9 @@ git_commit_backup() {
     git -C "$project_root" config pack.windowMemory 256m 2>/dev/null || true
     git -C "$project_root" config pack.deltaCacheSize 256m 2>/dev/null || true
 
+    # Ensure Git LFS is set up (auto-installs if missing)
+    git_lfs_setup "$project_root" || true
+
     # Check if this is a fresh repo (no commits yet) OR no remote (new GitHub repo)
     local is_fresh_repo=false
     if ! git -C "$project_root" rev-parse HEAD &>/dev/null; then
@@ -146,24 +149,27 @@ git_commit_backup() {
         fi
     fi
 
-    # Ensure .gitignore exists with backup data patterns
-    _setup_gitignore "$project_root" "$backup_dir"
-
-    # Remove any backup data files from git tracking (they're generated artifacts)
-    _remove_backup_data_from_git "$project_root" "$backup_dir"
+    # Ensure .gitignore exists
+    _setup_gitignore "$project_root"
 
     if [[ "$is_fresh_repo" == "true" ]]; then
-        # Fresh repo - stage project files only (backups are gitignored)
-        log_info "Initial commit - adding project files..."
+        # Fresh repo - add everything
+        log_info "Initial commit - adding project and backup files..."
         
-        # Stage everything (respects .gitignore)
         git -C "$project_root" add . 2>&1 || {
             log_warn "Failed to stage project files"
         }
+        
+        # Force-add backup files (may be gitignored by pattern)
+        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     else
-        # Existing repo - stage all project changes
-        log_info "Staging project files..."
+        # Existing repo - add all changes including backups
+        log_info "Staging project and backup files..."
+        
         git -C "$project_root" add -A 2>&1 || true
+        
+        # Force-add backup files
+        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     fi
 
     # Check if there are changes to commit
@@ -185,10 +191,9 @@ git_commit_backup() {
     return 0
 }
 
-# ── Setup .gitignore with backup patterns ───────────────────
+# ── Setup .gitignore (project files only, not backups) ──────
 _setup_gitignore() {
     local project_root="$1"
-    local backup_dir="$2"
 
     if [[ ! -f "${project_root}/.gitignore" ]]; then
         cat > "${project_root}/.gitignore" << 'GITIGNORE'
@@ -220,62 +225,7 @@ Thumbs.db
 /tmp/
 *.tmp
 GITIGNORE
-    fi
-
-    # Ensure backup data files are always gitignored
-    local backup_patterns=(
-        "*.sql.gz"
-        "*.sql.gz.enc"
-        "*.uploads.tar.gz"
-        "*.uploads.tar.gz.enc"
-        "*.tar.gz"
-        "*.tar.gz.enc"
-        "*.zip"
-        "*.zip.enc"
-        "*.log"
-    )
-
-    local changed=false
-    for pattern in "${backup_patterns[@]}"; do
-        if ! grep -qxF "$pattern" "${project_root}/.gitignore" 2>/dev/null; then
-            echo "$pattern" >> "${project_root}/.gitignore"
-            changed=true
-        fi
-    done
-
-    # Also ignore the backups directory itself
-    if ! grep -qxF "${backup_dir}/" "${project_root}/.gitignore" 2>/dev/null; then
-        echo "" >> "${project_root}/.gitignore"
-        echo "# Backup data (generated artifacts)" >> "${project_root}/.gitignore"
-        echo "${backup_dir}/" >> "${project_root}/.gitignore"
-        changed=true
-    fi
-
-    if [[ "$changed" == "true" ]]; then
-        log_info "Updated .gitignore with backup patterns"
-    fi
-}
-
-# ── Remove backup data files from git tracking ──────────────
-_remove_backup_data_from_git() {
-    local project_root="$1"
-    local backup_dir="$2"
-
-    # Find tracked backup data files and remove them from index
-    local tracked_files
-    tracked_files=$(git -C "$project_root" ls-files -- "${backup_dir}/" 2>/dev/null)
-
-    if [[ -n "$tracked_files" ]]; then
-        log_info "Removing backup data files from git tracking..."
-        while IFS= read -r file; do
-            [[ -z "$file" ]] && continue
-            # Only remove data files, keep manifest
-            if [[ "$file" == *.manifest.json ]]; then
-                continue
-            fi
-            git -C "$project_root" rm --cached "$file" 2>/dev/null || true
-            log_info "  Untracked: $file"
-        done <<< "$tracked_files"
+        log_info "Created .gitignore"
     fi
 }
 
