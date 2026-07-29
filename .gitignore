@@ -1,1 +1,13 @@
-.DS_Store
+# Backup files
+backups/
+*.enc
+*.sql.gz
+*.tar.gz
+._*
+
+# Logs
+*.log
+
+# Temp
+tmp/
+.cache/
