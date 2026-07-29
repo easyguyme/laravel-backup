@@ -407,7 +407,14 @@ git_push_backup() {
 
     log_info "Pushing to ${remote}/${branch}..."
 
-    # Push LFS objects first (actual large data goes to LFS server)
+    # Push commits first (only LFS pointer files, not the actual large blobs)
+    local push_output
+    push_output=$(git -C "$project_root" push --no-thin -u "$remote" "$branch" 2>&1) || {
+        log_error "Git push failed: $push_output"
+        return 1
+    }
+
+    # Push LFS objects last (actual large data goes to LFS server)
     if git_lfs_available; then
         local lfs_count
         lfs_count=$(git -C "$project_root" lfs ls-files 2>/dev/null | wc -l | tr -d ' ')
@@ -419,13 +426,6 @@ git_push_backup() {
             }
         fi
     fi
-
-    # Push commits (only LFS pointers, not the actual large blobs)
-    local push_output
-    push_output=$(git -C "$project_root" push --no-thin -u "$remote" "$branch" 2>&1) || {
-        log_error "Git push failed: $push_output"
-        return 1
-    }
 
     log_success "Pushed to ${remote}/${branch}"
     return 0
