@@ -53,15 +53,28 @@ git_init_if_needed() {
 
     # Try to create a private GitHub repo and add remote
     if github_available; then
+        local default_name
+        default_name=$(basename "$project_root")
+
+        echo ""
+        echo "Create a private GitHub repository for backups?"
+        echo "  Default name: ${default_name}"
+        echo ""
+
         local repo_name
-        repo_name=$(basename "$project_root")
+        repo_name=$(prompt_input "Repository name" "$default_name")
 
-        log_info "Creating private GitHub repository: ${repo_name}"
-        local repo_url
-        repo_url=$(github_create_repo "$repo_name" "private") || true
+        if [[ -n "$repo_name" ]]; then
+            log_info "Creating private GitHub repository: ${repo_name}"
+            local repo_url
+            repo_url=$(github_create_repo "$repo_name" "private") || true
 
-        if [[ -n "$repo_url" ]]; then
-            github_add_remote "$project_root" "$repo_url" || true
+            if [[ -n "$repo_url" ]]; then
+                github_add_remote "$project_root" "$repo_url" || true
+            fi
+        else
+            log_info "Skipping remote setup"
+            log_info "Add a remote manually: git remote add origin <url>"
         fi
     else
         log_warn "GitHub CLI not available - skipping remote setup"
