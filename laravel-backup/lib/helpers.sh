@@ -223,6 +223,41 @@ elapsed_time() {
     elif [[ $diff -lt 3600 ]]; then
         printf '%dm %ds' $((diff / 60)) $((diff % 60))
     else
-        printf '%dh %dm %ds' $((diff / 3600)) $((diff % 3600 / 60)) $((diff % 60))
+        printf '%dh %dm %ds' $((diff / 3600)) $((diff / 3600 / 60)) $((diff % 60))
     fi
+}
+
+# ── Check if Git LFS is available ───────────────────────────
+git_lfs_available() {
+    command_exists git && git lfs version &>/dev/null
+}
+
+# ── Initialize Git LFS and track backup file patterns ────────
+# Usage: git_lfs_setup <project_root>
+git_lfs_setup() {
+    local project_root="${1:-$(pwd)}"
+
+    if ! git_lfs_available; then
+        log_warn "Git LFS not installed - large files may fail to push"
+        log_info "Install: brew install git-lfs && git lfs install"
+        return 1
+    fi
+
+    log_info "Configuring Git LFS for backup files..."
+
+    git -C "$project_root" lfs install 2>/dev/null || true
+
+    git -C "$project_root" lfs track "*.sql.gz" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.sql.gz.enc" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.uploads.tar.gz" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.uploads.tar.gz.enc" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.tar.gz" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.tar.gz.enc" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.zip" 2>/dev/null || true
+    git -C "$project_root" lfs track "*.zip.enc" 2>/dev/null || true
+
+    git -C "$project_root" add -f .gitattributes 2>/dev/null || true
+
+    log_success "Git LFS configured"
+    return 0
 }

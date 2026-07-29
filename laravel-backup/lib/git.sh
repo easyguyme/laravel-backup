@@ -178,19 +178,8 @@ GITIGNORE
             log_info "Created .gitignore"
         fi
         
-        # Setup Git LFS for large files if available
-        if command_exists git-lfs || git lfs version &>/dev/null; then
-            log_info "Setting up Git LFS for large backup files..."
-            git -C "$project_root" lfs install 2>/dev/null || true
-            git -C "$project_root" lfs track "*.sql.gz" 2>/dev/null || true
-            git -C "$project_root" lfs track "*.sql.gz.enc" 2>/dev/null || true
-            git -C "$project_root" lfs track "*.uploads.tar.gz" 2>/dev/null || true
-            git -C "$project_root" lfs track "*.uploads.tar.gz.enc" 2>/dev/null || true
-            git -C "$project_root" add -f .gitattributes 2>/dev/null || true
-        else
-            log_warn "Git LFS not installed - large files may fail to push"
-            log_info "Install with: apt install git-lfs && git lfs install"
-        fi
+        # Setup Git LFS for large files
+        git_lfs_setup "$project_root" || true
         
         # Stage everything (respects .gitignore)
         git -C "$project_root" add . 2>&1 || {
@@ -203,14 +192,8 @@ GITIGNORE
         # Existing repo - add backup files with LFS
         log_info "Adding backup files..."
         
-        # Track large files with LFS if available
-        if git -C "$project_root" lfs version &>/dev/null; then
-            git -C "$project_root" lfs track "*.sql.gz" 2>/dev/null || true
-            git -C "$project_root" lfs track "*.sql.gz.enc" 2>/dev/null || true
-            git -C "$project_root" lfs track "*.uploads.tar.gz" 2>/dev/null || true
-            git -C "$project_root" lfs track "*.uploads.tar.gz.enc" 2>/dev/null || true
-            git -C "$project_root" add -f .gitattributes 2>/dev/null || true
-        fi
+        # Track large files with LFS
+        git_lfs_setup "$project_root" || true
         
         git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     fi
@@ -409,8 +392,19 @@ git_push_backup() {
 
     log_info "Pushing to ${remote}/${branch}..."
 
+    # LFS push may need force for pointer rewrites
+    local push_flags=("-u")
+    if git -C "$project_root" lfs status &>/dev/null 2>&1; then
+        # Check if LFS objects need force push (pointer rewrites)
+        local lfs_pending
+        lfs_pending=$(git -C "$project_root" lfs status 2>&1 | grep -c "push" || echo 0)
+        if [[ "$lfs_pending" -gt 0 ]]; then
+            log_info "LFS objects pending push"
+        fi
+    fi
+
     local push_output
-    push_output=$(git -C "$project_root" push -u "$remote" "$branch" 2>&1) || {
+    push_output=$(git -C "$project_root" push "${push_flags[@]}" "$remote" "$branch" 2>&1) || {
         log_error "Git push failed: $push_output"
         return 1
     }
