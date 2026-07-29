@@ -146,13 +146,52 @@ git_commit_backup() {
         fi
     fi
 
+    # Ensure .gitignore exists with backup data patterns
+    _setup_gitignore "$project_root" "$backup_dir"
+
+    # Remove any backup data files from git tracking (they're generated artifacts)
+    _remove_backup_data_from_git "$project_root" "$backup_dir"
+
     if [[ "$is_fresh_repo" == "true" ]]; then
-        # Fresh repo - add everything (app + backups)
-        log_info "Initial commit - adding entire project..."
+        # Fresh repo - stage project files only (backups are gitignored)
+        log_info "Initial commit - adding project files..."
         
-        # Create .gitignore if it doesn't exist
-        if [[ ! -f "${project_root}/.gitignore" ]]; then
-            cat > "${project_root}/.gitignore" << 'GITIGNORE'
+        # Stage everything (respects .gitignore)
+        git -C "$project_root" add . 2>&1 || {
+            log_warn "Failed to stage project files"
+        }
+    else
+        # Existing repo - stage all project changes
+        log_info "Staging project files..."
+        git -C "$project_root" add -A 2>&1 || true
+    fi
+
+    # Check if there are changes to commit
+    if git -C "$project_root" diff --cached --quiet 2>/dev/null; then
+        log_debug "No changes to commit"
+        return 0
+    fi
+
+    # Create commit
+    local commit_output
+    commit_output=$(git -C "$project_root" commit -m "$message" 2>&1) || {
+        log_error "Git commit failed: $commit_output"
+        return 1
+    }
+
+    local commit_hash
+    commit_hash=$(git_short_hash "$project_root")
+    log_success "Committed backup: ${commit_hash} - ${message}"
+    return 0
+}
+
+# ── Setup .gitignore with backup patterns ───────────────────
+_setup_gitignore() {
+    local project_root="$1"
+    local backup_dir="$2"
+
+    if [[ ! -f "${project_root}/.gitignore" ]]; then
+        cat > "${project_root}/.gitignore" << 'GITIGNORE'
 # Laravel
 /vendor/
 /node_modules/
@@ -181,75 +220,63 @@ Thumbs.db
 /tmp/
 *.tmp
 GITIGNORE
-            log_info "Created .gitignore"
+    fi
+
+    # Ensure backup data files are always gitignored
+    local backup_patterns=(
+        "*.sql.gz"
+        "*.sql.gz.enc"
+        "*.uploads.tar.gz"
+        "*.uploads.tar.gz.enc"
+        "*.tar.gz"
+        "*.tar.gz.enc"
+        "*.zip"
+        "*.zip.enc"
+        "*.log"
+    )
+
+    local changed=false
+    for pattern in "${backup_patterns[@]}"; do
+        if ! grep -qxF "$pattern" "${project_root}/.gitignore" 2>/dev/null; then
+            echo "$pattern" >> "${project_root}/.gitignore"
+            changed=true
         fi
-        
-        # Setup Git LFS for large files
-        git_lfs_setup "$project_root" || true
-        
-        # Stage everything (respects .gitignore)
-        git -C "$project_root" add . 2>&1 || {
-            log_warn "Failed to stage project files"
-        }
-        
-        # Force-add backup files
-        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
-    else
-        # Existing repo - add backup files with LFS
-        log_info "Adding backup files..."
-        
-        # Track large files with LFS
-        git_lfs_setup "$project_root" || true
+    done
 
-        # Migrate existing large files in git history to LFS
-        if git_lfs_available; then
-            local needs_migrate=false
-            # Check if any committed backup files are NOT LFS pointers
-            for pattern in "*.sql.gz" "*.sql.gz.enc" "*.uploads.tar.gz" "*.uploads.tar.gz.enc" "*.tar.gz" "*.tar.gz.enc"; do
-                local large_files
-                large_files=$(git -C "$project_root" ls-files -z -- "$backup_dir/$pattern" 2>/dev/null | tr '\0' '\n')
-                if [[ -n "$large_files" ]]; then
-                    while IFS= read -r f; do
-                        [[ -z "$f" ]] && continue
-                        # Check if file is a real file (not LFS pointer)
-                        if ! git -C "$project_root" show ":$f" 2>/dev/null | head -1 | grep -q "^version https://git-lfs"; then
-                            needs_migrate=true
-                            break
-                        fi
-                    done <<< "$large_files"
-                fi
-                [[ "$needs_migrate" == "true" ]] && break
-            done
+    # Also ignore the backups directory itself
+    if ! grep -qxF "${backup_dir}/" "${project_root}/.gitignore" 2>/dev/null; then
+        echo "" >> "${project_root}/.gitignore"
+        echo "# Backup data (generated artifacts)" >> "${project_root}/.gitignore"
+        echo "${backup_dir}/" >> "${project_root}/.gitignore"
+        changed=true
+    fi
 
-            if [[ "$needs_migrate" == "true" ]]; then
-                log_info "Migrating existing large backup files to LFS..."
-                git -C "$project_root" lfs migrate import \
-                    --include-ref=HEAD \
-                    --include="$backup_dir/*.sql.gz,$backup_dir/*.sql.gz.enc,$backup_dir/*.uploads.tar.gz,$backup_dir/*.uploads.tar.gz.enc,$backup_dir/*.tar.gz,$backup_dir/*.tar.gz.enc" \
-                    2>/dev/null || log_warn "LFS migration skipped (may require force push)"
+    if [[ "$changed" == "true" ]]; then
+        log_info "Updated .gitignore with backup patterns"
+    fi
+}
+
+# ── Remove backup data files from git tracking ──────────────
+_remove_backup_data_from_git() {
+    local project_root="$1"
+    local backup_dir="$2"
+
+    # Find tracked backup data files and remove them from index
+    local tracked_files
+    tracked_files=$(git -C "$project_root" ls-files -- "${backup_dir}/" 2>/dev/null)
+
+    if [[ -n "$tracked_files" ]]; then
+        log_info "Removing backup data files from git tracking..."
+        while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            # Only remove data files, keep manifest
+            if [[ "$file" == *.manifest.json ]]; then
+                continue
             fi
-        fi
-        
-        git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
+            git -C "$project_root" rm --cached "$file" 2>/dev/null || true
+            log_info "  Untracked: $file"
+        done <<< "$tracked_files"
     fi
-
-    # Check if there are changes to commit
-    if git -C "$project_root" diff --cached --quiet 2>/dev/null; then
-        log_debug "No backup changes to commit"
-        return 0
-    fi
-
-    # Create commit
-    local commit_output
-    commit_output=$(git -C "$project_root" commit -m "$message" 2>&1) || {
-        log_error "Git commit failed: $commit_output"
-        return 1
-    }
-
-    local commit_hash
-    commit_hash=$(git_short_hash "$project_root")
-    log_success "Committed backup: ${commit_hash} - ${message}"
-    return 0
 }
 
 # ── Create a git tag ────────────────────────────────────────
