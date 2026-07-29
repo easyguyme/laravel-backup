@@ -8,7 +8,8 @@ A production-ready command line backup utility for Laravel projects. Written ent
 - **AES-256 encryption** — Encrypt backups with OpenSSL
 - **Upload detection** — Automatically finds upload directories
 - **Git integration** — Auto-commit, tag, and push backups
-- **GitHub integration** — Create repos and releases via `gh` CLI
+- **Git LFS** — Auto-install and track large backup files via LFS
+- **GitHub integration** — Auto-install `gh` CLI, authenticate with token, create repos
 - **Notifications** — Telegram, Slack, Discord, Email, Webhooks
 - **Scheduling** — Cron and systemd timer setup
 - **Manifest** — Detailed metadata for every backup
@@ -89,6 +90,17 @@ Options:
 - `--no-db` — Skip database dump
 - `--no-uploads` — Skip upload archiving
 - `--config <file>` — Use specific config
+
+#### Git & LFS Integration
+
+When `GIT_AUTO_COMMIT=true`, the backup will:
+1. Auto-install `git-lfs` if not present
+2. Track `*.sql.gz`, `*.uploads.tar.gz`, `*.tar.gz`, `*.zip` via LFS
+3. Auto-install and authenticate GitHub CLI (`gh`) if needed
+4. Create a private GitHub repo with your chosen name
+5. Push commits first, then LFS objects
+
+No manual setup required — everything is installed automatically.
 
 ### Restore
 
@@ -270,10 +282,11 @@ WEBHOOK_METHOD="POST"
 - tar
 - gzip
 
-### Optional
+### Optional (auto-installed if missing)
 
 - git (for git integration)
-- gh (for GitHub integration)
+- gh (for GitHub integration — auto-installs via apt/yum/dnf/apk/pacman/zypper)
+- git-lfs (for large file tracking — auto-installs if missing)
 - jq (for JSON processing)
 - mysql/mysqldump (for MySQL backups)
 - psql/pg_dump (for PostgreSQL backups)
