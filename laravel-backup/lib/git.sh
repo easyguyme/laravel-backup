@@ -124,6 +124,12 @@ git_commit_backup() {
 
     log_info "Committing backup to git..."
 
+    # Tune git for large pushes
+    git -C "$project_root" config http.postBuffer 524288000 2>/dev/null || true
+    git -C "$project_root" config pack.threads 1 2>/dev/null || true
+    git -C "$project_root" config pack.windowMemory 256m 2>/dev/null || true
+    git -C "$project_root" config pack.deltaCacheSize 256m 2>/dev/null || true
+
     # Check if this is a fresh repo (no commits yet) OR no remote (new GitHub repo)
     local is_fresh_repo=false
     if ! git -C "$project_root" rev-parse HEAD &>/dev/null; then
@@ -194,6 +200,35 @@ GITIGNORE
         
         # Track large files with LFS
         git_lfs_setup "$project_root" || true
+
+        # Migrate existing large files in git history to LFS
+        if git_lfs_available; then
+            local needs_migrate=false
+            # Check if any committed backup files are NOT LFS pointers
+            for pattern in "*.sql.gz" "*.sql.gz.enc" "*.uploads.tar.gz" "*.uploads.tar.gz.enc" "*.tar.gz" "*.tar.gz.enc"; do
+                local large_files
+                large_files=$(git -C "$project_root" ls-files -z -- "$backup_dir/$pattern" 2>/dev/null | tr '\0' '\n')
+                if [[ -n "$large_files" ]]; then
+                    while IFS= read -r f; do
+                        [[ -z "$f" ]] && continue
+                        # Check if file is a real file (not LFS pointer)
+                        if ! git -C "$project_root" show ":$f" 2>/dev/null | head -1 | grep -q "^version https://git-lfs"; then
+                            needs_migrate=true
+                            break
+                        fi
+                    done <<< "$large_files"
+                fi
+                [[ "$needs_migrate" == "true" ]] && break
+            done
+
+            if [[ "$needs_migrate" == "true" ]]; then
+                log_info "Migrating existing large backup files to LFS..."
+                git -C "$project_root" lfs migrate import \
+                    --include-ref=HEAD \
+                    --include="$backup_dir/*.sql.gz,$backup_dir/*.sql.gz.enc,$backup_dir/*.uploads.tar.gz,$backup_dir/*.uploads.tar.gz.enc,$backup_dir/*.tar.gz,$backup_dir/*.tar.gz.enc" \
+                    2>/dev/null || log_warn "LFS migration skipped (may require force push)"
+            fi
+        fi
         
         git -C "$project_root" add -f "${backup_dir}/" 2>&1 || true
     fi
@@ -400,8 +435,7 @@ git_push_backup() {
     fi
 
     local push_output
-    GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=30 \
-    push_output=$(git -C "$project_root" push -u "$remote" "$branch" 2>&1) || {
+    push_output=$(git -C "$project_root" push --no-thin -u "$remote" "$branch" 2>&1) || {
         log_error "Git push failed: $push_output"
         return 1
     }
