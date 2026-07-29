@@ -402,15 +402,25 @@ git_push_backup() {
         branch=$(git_current_branch "$project_root")
     fi
 
+    # Clean up old large non-LFS files from history
+    _cleanup_large_files "$project_root"
+
     log_info "Pushing to ${remote}/${branch}..."
 
-    # Push LFS objects first to avoid pack-objects OOM
-    if git_lfs_available && git -C "$project_root" lfs ls-files &>/dev/null 2>&1; then
-        log_info "Pushing LFS objects..."
-        git -C "$project_root" lfs push --all "$remote" 2>/dev/null || \
-            log_warn "LFS push failed or no LFS objects"
+    # Push LFS objects first (actual large data goes to LFS server)
+    if git_lfs_available; then
+        local lfs_count
+        lfs_count=$(git -C "$project_root" lfs ls-files 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$lfs_count" -gt 0 ]]; then
+            log_info "Pushing ${lfs_count} LFS objects..."
+            git -C "$project_root" lfs push --all "$remote" 2>&1 || {
+                log_warn "LFS push failed — retrying with verbose output"
+                git -C "$project_root" lfs push --all "$remote" --verbose 2>&1 || true
+            }
+        fi
     fi
 
+    # Push commits (only LFS pointers, not the actual large blobs)
     local push_output
     push_output=$(git -C "$project_root" push --no-thin -u "$remote" "$branch" 2>&1) || {
         log_error "Git push failed: $push_output"
@@ -419,6 +429,54 @@ git_push_backup() {
 
     log_success "Pushed to ${remote}/${branch}"
     return 0
+}
+
+# ── Clean up old large non-LFS files from git history ───────
+_cleanup_large_files() {
+    local project_root="$1"
+    local backup_dir="${BACKUP_DIR:-backups}"
+
+    # Check if there are tracked backup files that are NOT LFS pointers
+    local large_files=()
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        # Skip if it's a manifest
+        [[ "$file" == *.manifest.json ]] && continue
+        # Check if file is a real file (not LFS pointer)
+        if ! git -C "$project_root" show ":$file" 2>/dev/null | head -1 | grep -q "^version https://git-lfs"; then
+            large_files+=("$file")
+        fi
+    done < <(git -C "$project_root" ls-files -- "${backup_dir}/" 2>/dev/null)
+
+    if [[ ${#large_files[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    log_info "Found ${#large_files[@]} large files not tracked by LFS"
+
+    # Remove them from tracking
+    for file in "${large_files[@]}"; do
+        log_info "  Removing from git: $file"
+        git -C "$project_root" rm --cached "$file" 2>/dev/null || true
+    done
+
+    # Ensure they're in .gitignore
+    if [[ -d "${project_root}/${backup_dir}" ]]; then
+        for file in "${large_files[@]}"; do
+            local basename
+            basename=$(basename "$file")
+            # Add to .gitignore if not already there
+            if ! grep -qxF "$basename" "${project_root}/.gitignore" 2>/dev/null; then
+                echo "$basename" >> "${project_root}/.gitignore"
+            fi
+        done
+    fi
+
+    # Commit the removal
+    if ! git -C "$project_root" diff --cached --quiet 2>/dev/null; then
+        git -C "$project_root" commit -m "chore: remove large backup files from git (will use LFS)" 2>/dev/null || true
+        log_info "Committed removal of old large files"
+    fi
 }
 
 # ── Push tags to remote ─────────────────────────────────────
