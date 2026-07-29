@@ -405,14 +405,44 @@ git_push_backup() {
     # Clean up old large non-LFS files from history
     _cleanup_large_files "$project_root"
 
+    # Tune HTTP settings for slow/unreliable connections
+    git -C "$project_root" config http.postBuffer 1048576000 2>/dev/null || true
+    git -C "$project_root" config http.lowSpeedLimit 1000 2>/dev/null || true
+    git -C "$project_root" config http.lowSpeedTime 60 2>/dev/null || true
+    git -C "$project_root" config http.maxRequestBuffer 100M 2>/dev/null || true
+
     log_info "Pushing to ${remote}/${branch}..."
 
     # Push commits first (only LFS pointer files, not the actual large blobs)
-    local push_output
-    push_output=$(git -C "$project_root" push --no-thin -u "$remote" "$branch" 2>&1) || {
-        log_error "Git push failed: $push_output"
+    # Retry up to 3 times on timeout/failure
+    local attempt=1
+    local max_attempts=3
+    local push_success=false
+
+    while [[ $attempt -le $max_attempts ]]; do
+        log_info "Push attempt ${attempt}/${max_attempts}..."
+        
+        local push_output
+        push_output=$(git -C "$project_root" push --no-thin -u "$remote" "$branch" 2>&1) && {
+            push_success=true
+            break
+        }
+        
+        log_warn "Push attempt ${attempt} failed: $push_output"
+        
+        if [[ $attempt -lt $max_attempts ]]; then
+            local wait=$((attempt * 10))
+            log_info "Waiting ${wait}s before retry..."
+            sleep "$wait"
+        fi
+        
+        ((attempt++)) || true
+    done
+
+    if [[ "$push_success" != "true" ]]; then
+        log_error "Git push failed after ${max_attempts} attempts"
         return 1
-    }
+    fi
 
     # Push LFS objects last (actual large data goes to LFS server)
     if git_lfs_available; then
@@ -420,10 +450,18 @@ git_push_backup() {
         lfs_count=$(git -C "$project_root" lfs ls-files 2>/dev/null | wc -l | tr -d ' ')
         if [[ "$lfs_count" -gt 0 ]]; then
             log_info "Pushing ${lfs_count} LFS objects..."
-            git -C "$project_root" lfs push --all "$remote" 2>&1 || {
-                log_warn "LFS push failed — retrying with verbose output"
-                git -C "$project_root" lfs push --all "$remote" --verbose 2>&1 || true
-            }
+            
+            local lfs_attempt=1
+            local lfs_max=3
+            while [[ $lfs_attempt -le $lfs_max ]]; do
+                git -C "$project_root" lfs push --all "$remote" 2>&1 && break
+                
+                log_warn "LFS push attempt ${lfs_attempt} failed"
+                if [[ $lfs_attempt -lt $lfs_max ]]; then
+                    sleep $((lfs_attempt * 10))
+                fi
+                ((lfs_attempt++)) || true
+            done
         fi
     fi
 
