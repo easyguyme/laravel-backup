@@ -392,19 +392,16 @@ git_push_backup() {
 
     log_info "Pushing to ${remote}/${branch}..."
 
-    # LFS push may need force for pointer rewrites
-    local push_flags=("-u")
-    if git -C "$project_root" lfs status &>/dev/null 2>&1; then
-        # Check if LFS objects need force push (pointer rewrites)
-        local lfs_pending
-        lfs_pending=$(git -C "$project_root" lfs status 2>&1 | grep -c "push" || echo 0)
-        if [[ "$lfs_pending" -gt 0 ]]; then
-            log_info "LFS objects pending push"
-        fi
+    # Push LFS objects first to avoid pack-objects OOM
+    if git_lfs_available && git -C "$project_root" lfs ls-files &>/dev/null 2>&1; then
+        log_info "Pushing LFS objects..."
+        git -C "$project_root" lfs push --all "$remote" 2>/dev/null || \
+            log_warn "LFS push failed or no LFS objects"
     fi
 
     local push_output
-    push_output=$(git -C "$project_root" push "${push_flags[@]}" "$remote" "$branch" 2>&1) || {
+    GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=30 \
+    push_output=$(git -C "$project_root" push -u "$remote" "$branch" 2>&1) || {
         log_error "Git push failed: $push_output"
         return 1
     }
