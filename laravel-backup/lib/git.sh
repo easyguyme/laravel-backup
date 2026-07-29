@@ -51,8 +51,30 @@ git_init_if_needed() {
     # Fix dubious ownership error
     git config --global --add safe.directory "$project_root" 2>/dev/null || true
 
-    # Try to create a private GitHub repo and add remote
+    # Check if GitHub CLI is available and authenticated
+    # If not, offer to install and authenticate
+    local use_github=false
     if github_available; then
+        use_github=true
+    else
+        echo ""
+        echo "GitHub CLI is not installed or not authenticated."
+        echo "This is needed to create a private repository for your backups."
+        echo ""
+        if confirm "Install and authenticate GitHub CLI now?" "y"; then
+            if github_setup; then
+                use_github=true
+            else
+                log_warn "GitHub setup failed - skipping remote setup"
+            fi
+        else
+            log_info "Skipping remote setup"
+            log_info "Add a remote manually: git remote add origin <url>"
+        fi
+    fi
+
+    # Create GitHub repo and add remote
+    if [[ "$use_github" == "true" ]]; then
         local default_name
         default_name=$(basename "$project_root")
 
@@ -76,9 +98,6 @@ git_init_if_needed() {
             log_info "Skipping remote setup"
             log_info "Add a remote manually: git remote add origin <url>"
         fi
-    else
-        log_warn "GitHub CLI not available - skipping remote setup"
-        log_info "Add a remote manually: git remote add origin <url>"
     fi
 
     return 0
